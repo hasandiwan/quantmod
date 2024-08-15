@@ -782,6 +782,7 @@ function(Symbols,env,return.class='xts',
 
 "getSymbols.cache" <- function() {}
 
+
 # getFX {{{
 `getFX` <-
 function(Currencies,from=Sys.Date()-179,to=Sys.Date(),
@@ -1171,6 +1172,17 @@ useRTH = '1', whatToShow = 'TRADES', time.format = '1', ...)
 
 # getSymbols.ROracle {{{
 "getSymbols.ROracle" <- function() {}
+# }}}
+
+# getSymbols.hasan {{{
+`getSymbols.hasan` <- function(symbol) {
+    if (is.na(symbol)) symbol <- 'QQQ'
+
+    paste0('https://units-helper.d8u.us/stock.csv?sym=', symbol) -> url
+    data <- data <-read.csv(url, colClasses = c('Date', 'numeric', 'numeric', 'numeric', 'numeric','numeric', 'logical'))
+    ret <- xts(data[,c(-1, -7)], order.by = data[,1])
+    return(ret)
+}
 # }}}
 
 # getSymbols.oanda {{{
