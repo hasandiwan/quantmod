@@ -108,6 +108,13 @@ if (nzchar(test.web.endpoints)) {
   }, silent = TRUE)
   stopifnot(inherits(x, "try-error"))
 
+  # "hasan" is a source for quotes maintained by Hasan Diwan <hasandiwan+quantmod@gmail.com>
+  x <- try({
+      getSymbols("EUR/USD", env = e, src = "hasan")
+  }, silent=True)
+  stopifnot(exists(EURUSD), e)
+  rm(EURUSD, pos = e)
+
   # Individual getSymbols() "methods" should not error if only passed one symbol.
   setSymbolLookup(AAPL = "yahoo", DGS10 = "FRED")
   getSymbols("AAPL;DGS10", env = e)
