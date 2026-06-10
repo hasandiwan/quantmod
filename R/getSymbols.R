@@ -725,7 +725,7 @@ function(Symbols,env,return.class='xts',
 
 # getSymbols.FRED {{{
 `getSymbols.FRED` <- function(Symbols,env,
-     return.class="xts", ...) {
+     return.class="xts", api.key, ...) {
      importDefaults("getSymbols.FRED")
      this.env <- environment()
      for(var in names(list(...))) {
@@ -738,7 +738,16 @@ function(Symbols,env,return.class='xts',
      if(!hasArg("from")) from <- ""
      if(!hasArg("to")) to <- ""
 
-     FRED.URL <- "https://fred.stlouisfed.org/graph/fredgraph.csv?id="
+     have.key <- hasArg("api.key")
+
+     apikey.url <- "https://fredaccount.stlouisfed.org/apikeys"
+     register.msg <- paste0(
+       "getSymbols.FRED: requests without an API key are not guaranteed to ",
+       "succeed.\nRegister for a free key at ", apikey.url, " and set it with\n",
+       "setDefaults(getSymbols.FRED, api.key = \"your key\").")
+
+     CSV.URL <- "https://fred.stlouisfed.org/graph/fredgraph.csv?id="
+     API.URL <- "https://api.stlouisfed.org/fred/series/observations"
 
      returnSym <- Symbols
      noDataSym <- NULL
@@ -746,35 +755,57 @@ function(Symbols,env,return.class='xts',
      for(i in seq_along(Symbols)) {
        if(verbose) cat("downloading ",Symbols[[i]],".....\n\n")
        test <- try({
-       URL <- paste0(FRED.URL, Symbols[[i]])
-       fr <- read.csv(curl::curl(URL),na.strings=".")
-
-       if(verbose) cat("done.\n")
-       fr <- xts(as.matrix(fr[,-1]),
-                 as.Date(fr[,1],origin='1970-01-01'),
-                 src='FRED',updated=Sys.time())
-       dim(fr) <- c(NROW(fr),1)
-       colnames(fr) <- as.character(toupper(Symbols[[i]]))
-       # subset between from/to dates before we convert from xts
-       fr <- fr[paste(from, to, sep = "/")]
-
-       fr <- convert.time.series(fr=fr,return.class=return.class)
-       Symbols[[i]] <-toupper(gsub('\\^','',Symbols[[i]]))
-       if(auto.assign)
-         assign(Symbols[[i]],fr,env)
-       }, silent = TRUE)
-       if (inherits(test, "try-error")) {
-         msg <- paste0("Unable to import ", dQuote(returnSym[[i]]),
-                       ".\n", attr(test, "condition")$message)
-         if (hasArg(".has1sym.") && match.call(expand.dots=TRUE)$.has1sym.) {
-           stop(msg)
+         if(have.key) {
+           URL <- paste0(API.URL, "?series_id=", Symbols[[i]],
+                         "&api_key=", api.key, "&file_type=json")
+           obs <- jsonlite::fromJSON(URL)
+           if(!is.null(obs$error_message)) {
+             stop(obs$error_message, call. = FALSE)
+           }
+           obs <- obs$observations
+           value <- obs[, "value"]
+           value[value %in% c(".", "")] <- NA
+           fr <- xts(as.numeric(value), as.Date(obs[, "date"]),
+                     src = "FRED", updated = Sys.time())
+         } else {
+           URL <- paste0(CSV.URL, Symbols[[i]])
+           fr <- read.csv(curl::curl(URL),na.strings=".")
+           fr <- xts(as.matrix(fr[,-1]),
+                     as.Date(fr[,1],origin='1970-01-01'),
+                     src='FRED',updated=Sys.time())
+           if(!isTRUE(get0("fred_apikey_msg_shown", envir = .quantmodEnv)) &&
+               isTRUE(getOption("getSymbols.FRED.recommend.apikey", TRUE))) {
+             message(register.msg)
+             assign("fred_apikey_msg_shown", TRUE, envir = .quantmodEnv)
+           }
          }
-         if (isTRUE(warnings)) {
-           warning(msg, call. = FALSE, immediate. = TRUE)
+         if(verbose) cat("done.\n")
+
+         dim(fr) <- c(NROW(fr),1)
+         colnames(fr) <- as.character(toupper(Symbols[[i]]))
+         # subset between from/to dates before we convert from xts
+         fr <- fr[paste(from, to, sep = "/")]
+
+         fr <- convert.time.series(fr=fr,return.class=return.class)
+         Symbols[[i]] <-toupper(gsub('\\^','',Symbols[[i]]))
+         if(auto.assign)
+           assign(Symbols[[i]],fr,env)
+         }, silent = TRUE)
+         if (inherits(test, "try-error")) {
+           msg <- paste0("Unable to import ", dQuote(returnSym[[i]]),
+                         ".\n", attr(test, "condition")$message)
+           if (!have.key) {
+             msg <- paste0(msg, "\n", register.msg)
+           }
+           if (hasArg(".has1sym.") && match.call(expand.dots=TRUE)$.has1sym.) {
+             stop(msg)
+           }
+           if (isTRUE(warnings)) {
+             warning(msg, call. = FALSE, immediate. = TRUE)
+           }
+           noDataSym <- c(noDataSym, returnSym[[i]])
          }
-         noDataSym <- c(noDataSym, returnSym[[i]])
        }
-     }
      if(auto.assign)
        return(setdiff(returnSym, noDataSym))
      return(fr)

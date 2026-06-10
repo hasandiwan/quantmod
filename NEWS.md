@@ -1,3 +1,10 @@
+### Changes in 0.4.29 (2026-06-14)
+
+1. Add `api.key` argument to `getSymbols.FRED()` and nudge users to register
+   for one if they do not provide an `api.key`. Thanks to Rob Schumaker
+   (@robschumaker) for the report.
+    [#453](https://github.com/joshuaulrich/quantmod/issues/453)
+
 ### Changes in 0.4.28 (2025-06-18)
 
 1. Fix FRED URL. Thanks to Nicole Mirea (@nimirea) for the report!
