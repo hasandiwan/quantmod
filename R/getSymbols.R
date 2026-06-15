@@ -763,6 +763,19 @@ function(Symbols,env,return.class='xts',
      returnSym <- Symbols
      noDataSym <- NULL
 
+     fetch <- function(URL) {
+       res <- curl::curl_fetch_memory(URL)
+       if(res$status_code != 200L) {
+         # FRED's JSON API reports bad key/series in the body, which is
+         # more useful than the bare status; fall back to status otherwise.
+         msg <- tryCatch(jsonlite::fromJSON(rawToChar(res$content))$error_message,
+                         error = function(e) NULL)
+         stop(if (is.null(msg)) paste0("FRED returned HTTP ", res$status_code) else msg,
+              call. = FALSE)
+       }
+       rawToChar(res$content)
+     }
+
      for(i in seq_along(Symbols)) {
        if(verbose) cat("downloading ",Symbols[[i]],".....\n\n")
        test <- try({
@@ -772,11 +785,7 @@ function(Symbols,env,return.class='xts',
            if (!is.na(obs.beg)) URL <- paste0(URL, "&observation_start=", obs.beg)
            if (!is.na(obs.end)) URL <- paste0(URL, "&observation_end=", obs.end)
 
-           obs <- jsonlite::fromJSON(URL)
-           if(!is.null(obs$error_message)) {
-             stop(obs$error_message, call. = FALSE)
-           }
-           obs <- obs$observations
+           obs <- fetch(URL)
            value <- obs[, "value"]
            value[value %in% c(".", "")] <- NA
            fr <- xts(as.numeric(value), as.Date(obs[, "date"]),
@@ -785,7 +794,7 @@ function(Symbols,env,return.class='xts',
            URL <- paste0(CSV.URL, Symbols[[i]])
            if (!is.na(obs.beg)) URL <- paste0(URL, "&cosd=", obs.beg)
            if (!is.na(obs.end)) URL <- paste0(URL, "&coed=", obs.end)
-           fr <- read.csv(curl::curl(URL),na.strings=".")
+           fr <- read.csv(text=fetch(URL),na.strings=".")
            fr <- xts(as.matrix(fr[,-1]),
                      as.Date(fr[,1],origin='1970-01-01'),
                      src='FRED',updated=Sys.time())
