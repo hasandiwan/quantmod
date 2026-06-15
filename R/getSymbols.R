@@ -749,6 +749,17 @@ function(Symbols,env,return.class='xts',
      CSV.URL <- "https://fred.stlouisfed.org/graph/fredgraph.csv?id="
      API.URL <- "https://api.stlouisfed.org/fred/series/observations"
 
+     # FRED API observation bounds: format from/to as YYYY-MM-DD when they
+     # parse cleanly; otherwise leave unset and let the client-side subset
+     # below do the filtering (e.g. partial ISO strings like "2020").
+     fred.date <- function(x) {
+       if (is.null(x) || length(x) != 1L || (is.character(x) && !nzchar(x)))
+           d <- NA
+       tryCatch(format(as.Date(x), "%Y-%m-%d"), error = function(e) NA)
+     }
+     obs.beg <- fred.date(from)
+     obs.end <- fred.date(to)
+
      returnSym <- Symbols
      noDataSym <- NULL
 
@@ -758,6 +769,9 @@ function(Symbols,env,return.class='xts',
          if(have.key) {
            URL <- paste0(API.URL, "?series_id=", Symbols[[i]],
                          "&api_key=", api.key, "&file_type=json")
+           if (!is.na(obs.beg)) URL <- paste0(URL, "&observation_start=", obs.beg)
+           if (!is.na(obs.end)) URL <- paste0(URL, "&observation_end=", obs.end)
+
            obs <- jsonlite::fromJSON(URL)
            if(!is.null(obs$error_message)) {
              stop(obs$error_message, call. = FALSE)
@@ -769,6 +783,8 @@ function(Symbols,env,return.class='xts',
                      src = "FRED", updated = Sys.time())
          } else {
            URL <- paste0(CSV.URL, Symbols[[i]])
+           if (!is.na(obs.beg)) URL <- paste0(URL, "&cosd=", obs.beg)
+           if (!is.na(obs.end)) URL <- paste0(URL, "&coed=", obs.end)
            fr <- read.csv(curl::curl(URL),na.strings=".")
            fr <- xts(as.matrix(fr[,-1]),
                      as.Date(fr[,1],origin='1970-01-01'),
