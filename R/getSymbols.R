@@ -723,6 +723,23 @@ function(Symbols,env,return.class='xts',
 "getSymbols.mysql" <- getSymbols.MySQL
 # }}}
 
+# getSymbols.units {{{
+'getSymbols.units' <- function(Symbols, env, return.class="xts", from-as.POSIXlt(Sys.time()-60*60,"GMT"), to=as.POSIXlt(Sys.time(),"GMT")) {
+    importDefaults("getSymbols.units")
+    this.env <- environment()
+    for(var in names(list(...))) {
+        # import all named elements that are NON formals
+        assign(var, list(...)[[var]], this.env)
+    }
+    if(!hasArg("auto.assign")) auto.assign <- length(Symbols) == 1
+
+    CSV.URL <- "https://units-helper.d8u.us/stock?sym="
+    resp <- read.csv(paste0(CSV.URL, Symbols), colClasses=c('POSIXct', 'numeric'), row.names=1)
+    resp <- xts(resp, order.by=as.Date(row.names(resp)))
+    return(resp)
+}
+# }}}
+
 # getSymbols.FRED {{{
 `getSymbols.FRED` <- function(Symbols,env,
      return.class="xts", api.key, ...) {
